@@ -2,33 +2,31 @@
 #define SIM_KINEMATICS_H
 
 #include <usm_utils/geometry.h>
-#include <usm_sim/common.h>
 
 #include <iostream>
 
+
 /**
  * Class for simulating kinematics of an usm
- * @template Np is the position dimension
- * @template Nrot is rotation dimension
- * @template Nq is the number of joints
  */
 
-template<int Np, int Nrot, int Nq, int Nxi>
 class SimKinematics {
   private:
+    int nq;
+    int nxi;
     double h;
-    
-    Eigen::Matrix<double, Np, 1> p;
-    Eigen::Matrix<double, Nrot, Nrot> R;
-    Eigen::Matrix<double, Nq, 1> q;
+     
+    Eigen::Vector3d p;
+    Eigen::Matrix3d R;
+    Eigen::VectorXd q;
 
   public:
     SimKinematics();
-    SimKinematics(const double h);
+    SimKinematics(const double h, const int joints);
    
     void setStepSize(const double h);
 
-    Eigen::Matrix<double, Nxi, 1> sim(const Eigen::Matrix<double, Nxi, 1> &zeta, const int steps);
+    Eigen::VectorXd sim(const Eigen::VectorXd &zeta, const int steps);
 };
 
 
@@ -36,12 +34,10 @@ class SimKinematics {
  * Default constructor
  */
 
-template<int Np, int Nrot, int Nq, int Nxi>
-SimKinematics<Np, Nrot, Nq, Nxi>::SimKinematics()
+SimKinematics::SimKinematics()
 : h(0.01)
-, p(Eigen::Matrix<double, Np, 1>::Zero())
-, R(Eigen::Matrix<double, Nrot, Nrot>::Zero())
-, q(Eigen::Matrix<double, Nq, 1>::Zero())
+, p(Eigen::Matrix<double, 3, 1>::Zero())
+, R(Eigen::Matrix<double, 3, 3>::Zero())
 {}
 
 
@@ -49,22 +45,24 @@ SimKinematics<Np, Nrot, Nq, Nxi>::SimKinematics()
  * Constructor with specified step size 
  */
 
-template<int Np, int Nrot, int Nq, int Nxi>
-SimKinematics<Np, Nrot, Nq, Nxi>::SimKinematics(const double h)
+SimKinematics::SimKinematics(const double h, const int joints)
 : h(h)
-, p(Eigen::Matrix<double, Np, 1>::Zero())
-, R(Eigen::Matrix<double, Nrot, Nrot>::Zero())
-, q(Eigen::Matrix<double, Nq, 1>::Zero())
-{}
+, p(Eigen::Vector3d::Zero())
+, R(Eigen::Matrix3d::Zero())
+, nq(joints)
+, nxi(6+joints)
+{
+  this->q.resize(joints);
+  this->q = Eigen::VectorXd::Zero(joints);
+}
 
 
 /**
  * Utility function to set step size
  */
 
-template<int Np, int Nrot, int Nq, int Nxi>
 void
-SimKinematics<Np, Nrot, Nq, Nxi>::setStepSize(const double h)
+SimKinematics::setStepSize(const double h)
 {
   this->h = h;
 }
@@ -74,29 +72,34 @@ SimKinematics<Np, Nrot, Nq, Nxi>::setStepSize(const double h)
  * Simulate kinematics for a fixed number of steps and return state vector
  */
 
-template<int Np, int Nrot, int Nq, int Nxi>
-Eigen::Matrix<double, Nxi, 1>
-SimKinematics<Np, Nrot, Nq, Nxi>::sim(const Eigen::Matrix<double, Nxi, 1> &zeta, const int steps) 
+Eigen::VectorXd
+SimKinematics::sim(const Eigen::VectorXd &zeta, const int steps) 
 {
   std::cout << "In Sim :: " << std::endl;
+  
+  // Dimensioning check zeta
+  if (zeta.size() != this->nxi) {
+    std::cerr << "Conflicting dimensions; zeta:: " << zeta.rows() << std::endl;
+    return Eigen::VectorXd::Zero(this->nxi); 
+  }
 
   // Euler integration 
-  Eigen::Matrix<double, Nrot, Nrot> Su = Geometry::skew(zeta.block(Np, 0, Nrot, 1));
+  Eigen::Matrix3d Su = Geometry::skew(zeta.block(3, 0, 3, 1));
   for (int i = 0; i < steps; i++) {
     
-    this->p = this->p + this->h*(zeta.block(0, 0, Np, 1));
+    this->p = this->p + this->h*(zeta.block(0, 0, 3, 1));
 
     this->R = this->R + this->h*(Su*this->R);
 
-    this->q = this->q + this->h*(zeta.block(Np+Nrot, 0, Nq, 1));
+    this->q = this->q + this->h*(zeta.block(3+3, 0, this->nq, 1));
   }
 
   // Return
-  Eigen::Matrix<double, Nxi, 1> xi;
+  Eigen::VectorXd xi(this->nxi);
 
-  xi.block(0, 0, Np, 1) = this->p;
-  xi.block(3, 0, Nrot, 1) = Geometry::R2euler(this->R); 
-  xi.block(6, 0, Nq, 1) = this->q;
+  xi.block(0, 0, 3, 1) = this->p;
+  xi.block(3, 0, 3, 1) = Geometry::R2euler(this->R); 
+  xi.block(6, 0, this->nq, 1) = this->q;
   return xi;
 }
 

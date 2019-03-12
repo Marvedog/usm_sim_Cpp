@@ -3,12 +3,13 @@
 
 #include <ros/ros.h>
 
-#include <usm_msgs/UsmState.h>
 #include <usm_msgs/Control.h>
 
-#include <Eigen/Dense>
-
+#include <usm_utils/snake.h>
 #include <usm_sim/simulate_kinematics.h>
+
+#include <Eigen/Dense>
+#include <mutex>
 
 /**
  * Class SimulationNode wrapping kinematic simulator
@@ -29,17 +30,18 @@ class SimulationNode {
     ros::Timer timer;
     
     int steps;
+    int nxi; 
     double ts;
     bool kinematicsOn;
     bool firstControl;
-    std::string baseFrame;
 
-    SimKinematics<Np, Nrot, Nq, Nxi> simKinematics;
+    Utils::Snake usm;
+    SimKinematics simKinematics;
 
-    Eigen::Matrix<double, Nxi, 1> xi;
-    Eigen::Matrix<double, Nzeta, 1> zeta;
+    Eigen::VectorXd xi;
+    Eigen::VectorXd zeta;
 
-
+    std::mutex mutex;
   public:
     SimulationNode(const ros::NodeHandle &nh, const ros::NodeHandle &nhp);
 };

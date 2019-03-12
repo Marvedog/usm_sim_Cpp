@@ -1,5 +1,8 @@
 #include <usm_sim/simulation_node.h>
+#include <usm_utils/containers.h>
+#include <usm_msgs/UsmState.h>
 
+#include <tf/tf.h>
 #include <tf/transform_datatypes.h>
 
 
@@ -30,33 +33,55 @@ SimulationNode::publishOdometry(const usm_msgs::UsmState &msg, const std::string
 SimulationNode::SimulationNode(const ros::NodeHandle &nh, const ros::NodeHandle &nhp)
 : nh(nh)
 , nhp(nhp)
-, xi(Eigen::Matrix<double, Nxi, 1>::Zero())
-, zeta(Eigen::Matrix<double, Nzeta, 1>::Zero())
 , firstControl(false)
 {
+  // Snake configuration setup
+  Utils::Config config;
+  this->nh.getParam("/snake_config", config.snake);
+  this->nh.getParam("/d", config.d);
+  this->nh.getParam("/a", config.a);
+  this->nh.getParam("/alpha", config.alpha);
+  this->nh.getParam("/theta", config.theta);
+  this->nh.getParam("/base_frame", config.base);
+  
+  this->usm = Utils::Snake(config);
+
   // Simulation data
   this->nhp.getParam("/simulation/sim_steps", this->steps);
   this->nhp.getParam("/simulation/h", this->ts);
   this->nhp.getParam("/simulation/sim_kinematics", this->kinematicsOn);
-  this->nhp.getParam("/simulation/base_frame", this->baseFrame);
 
   // Set up kinematic simulator
-  this->simKinematics = SimKinematics<Np, Nrot, Nq, Nxi>(this->ts);
+  this->nxi = 6 + this->usm.getJoints();
 
-  std::string controlTopic, usmStateTopic;
-  this->nh.getParam("/control/plant_input", controlTopic);
-  this->nh.getParam("/state_estimation/usm_state", usmStateTopic);
+  this->xi.resize(this->nxi);
+  this->zeta.resize(this->nxi);
+
+  mutex.lock();  
+  this->xi = Eigen::VectorXd::Zero(this->nxi);
+  this->zeta = Eigen::VectorXd::Zero(this->nxi);
+  mutex.unlock();
+
+  this->simKinematics = SimKinematics(this->ts, this->usm.getJoints());
+
+  //std::string controlTopic, usmStateTopic;
+  //this->nh.getParam("/control/plant_input", controlTopic);
+  //this->nh.getParam("/state_estimation/usm_state", usmStateTopic);
 
   this->controlSub = this->nh.subscribe("/control/plant_input", 1, &SimulationNode::controlCb, this);
   this->usmStatePub = this->nh.advertise<usm_msgs::UsmState>("/state_estimation/usm_state", 1);
   
   // Set up timer cb
-  while (!this->firstControl)
+  ros::Rate d(1);
+  while (!this->firstControl) {
+    d.sleep();
     ros::spinOnce();
+    this->publishUsmState();
+  }
+  
+  //std::cout << "SimulationNode:: Got first control" << std::endl;
 
   this->timer = this->nh.createTimer(ros::Duration(this->steps*this->ts), &SimulationNode::timerCb, this);
-
-  std::cout << "Simulation set up" << std::endl;
 }
 
 
@@ -69,18 +94,14 @@ void
 SimulationNode::timerCb(const ros::TimerEvent &e)
 {
   // Add condition
-  if (true) {
-    //std::cout << "Simulation::timerCb:: " << std::endl;
-    //std::cout << "xi size:: pre sim" << this->xi.size() << std::endl;
-    //std::cout << "zeta size:: " << this->zeta.size() << std::endl;
+  if (true)
     this->xi = this->simKinematics.sim(this->zeta, this->steps);
-  }
 
   // Check for nan
-  if (this->xi[0] != this->xi[0]) {
-    std::cerr << "Simulation:: Nan alarm!!" << std::endl;
-    ros::shutdown();
-  }
+  mutex.lock();
+  if (this->xi[0] != this->xi[0])
+    std::cout << "Simulation:: Nan alarm!!" << std::endl;
+  mutex.unlock();
 
   this->publishUsmState();
 }
@@ -95,38 +116,26 @@ void
 SimulationNode::controlCb(const usm_msgs::Control &msg)
 {
   // Linear velocity
-  Eigen::Matrix<double, Np, 1> vTr;
-  vTr[0] = msg.guidance.v.linear.x;
-  vTr[1] = msg.guidance.v.linear.y;
-  vTr[2] = msg.guidance.v.linear.z;
+  mutex.lock();
+  this->zeta[0] = msg.guidance.v.linear.x;
+  this->zeta[1] = msg.guidance.v.linear.y;
+  this->zeta[2] = msg.guidance.v.linear.z;
 
   // Angular velocity (se(3))
-  //std::cout << "Angular velocities!! " << std::endl;
-  Eigen::Matrix<double, Nrot, 1> vRot;
-  vRot[0] = msg.guidance.v.angular.x;
-  vRot[1] = msg.guidance.v.angular.y;
-  vRot[2] = msg.guidance.v.angular.z;
+  this->zeta[3] = msg.guidance.v.angular.x;
+  this->zeta[4] = msg.guidance.v.angular.y;
+  this->zeta[5] = msg.guidance.v.angular.z;
 
   // Joint velocities
-  if (Nq != msg.guidance.dq.theta.size()) {
-    std::cerr << "Erroneous number of joint angles! Shutting down simulation." << std::endl;
-    ros::shutdown();
-  }
-
-  //std::cout << "Joint velocities!! " << std::endl;
+  if ((this->zeta.size() - 6) != msg.guidance.dq.theta.size())
+    std::cout << "Erroneous number of joint angles! Shutting down simulation." << std::endl;
   
-  Eigen::Matrix<double, Nq, 1> dq;
-  for (int i = 0; i < Nq; i++)
-    dq[i] = msg.guidance.dq.theta[i].angle;
-
-  this->zeta.block<Np,1>(0,0) = vTr;
-  this->zeta.block<Nrot,1>(Np,0) = vRot;
-  this->zeta.block<Nq,1>(Np+Nrot,0) = dq;
-
-  //std::cout << "Published state!! " << std::endl;
+  for (int i = 0; i < this->usm.getJoints(); i++)
+    this->zeta[6+i] = msg.guidance.dq.theta[i].angle;
 
   if (!this->firstControl)
     this->firstControl = true;
+  mutex.unlock();
 }
 
 
@@ -139,32 +148,34 @@ SimulationNode::publishUsmState()
 {
   usm_msgs::UsmState usmState;
   
+  mutex.lock();
   // Pose
-  usmState.x.p.position.x = xi[0];
-  usmState.x.p.position.y = xi[1];
-  usmState.x.p.position.z = xi[2];
+  usmState.x.p.position.x = this->xi[0];
+  usmState.x.p.position.y = this->xi[1];
+  usmState.x.p.position.z = this->xi[2];
    
-  Eigen::Matrix<double, Nrot, 1> eul = xi.block<Nrot, 1>(Np,0);
+  Eigen::Vector3d eul = this->xi.block(3, 0, 3, 1);
   geometry_msgs::Quaternion quat = tf::createQuaternionMsgFromRollPitchYaw(eul[0], eul[1], eul[2]);
   usmState.x.p.orientation = quat;
 
-  usmState.x.q.theta.resize(Nq);
-  for (int i = Np + Nrot; i < Nxi; i++)
-    usmState.x.q.theta[i].angle = xi[i];
+  usmState.x.q.theta.resize(this->usm.getJoints());
+  for (int i = 3 + 3; i < this->nxi; i++)
+    usmState.x.q.theta[i-6].angle = this->xi[i];
 
   // Velocities
-  usmState.dx.v.linear.x = zeta[0];
-  usmState.dx.v.linear.y = zeta[1];
-  usmState.dx.v.linear.z = zeta[2];
+  usmState.dx.v.linear.x = this->zeta[0];
+  usmState.dx.v.linear.y = this->zeta[1];
+  usmState.dx.v.linear.z = this->zeta[2];
    
-  usmState.dx.v.angular.x = zeta[0];
-  usmState.dx.v.angular.y = zeta[1];
-  usmState.dx.v.angular.z = zeta[2];
+  usmState.dx.v.angular.x = this->zeta[3];
+  usmState.dx.v.angular.y = this->zeta[4];
+  usmState.dx.v.angular.z = this->zeta[5];
 
-  usmState.dx.dq.theta.resize(Nq);
-  for (int i = Np + Nrot; i < Nxi; i++)
-    usmState.dx.dq.theta[i].angle = zeta[i];
+  usmState.dx.dq.theta.resize(this->usm.getJoints());
+  for (int i = 3 + 3; i < this->nxi; i++)
+    usmState.dx.dq.theta[i-6].angle = this->zeta[i];
 
+  mutex.unlock();
   this->usmStatePub.publish(usmState);
 }
 
@@ -176,6 +187,7 @@ main(int argc, char** argv)
   ros::NodeHandle nh("");
   ros::NodeHandle nhp("~");
   SimulationNode simulationNode(nh, nhp);
-  ros::spin();
-  return 0;
+  ros::MultiThreadedSpinner spinner(2);
+  spinner.spin();
+  ros::waitForShutdown();
 }
