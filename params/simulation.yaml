@@ -1,0 +1,15 @@
+#--------------------------------------------
+# Simulation params
+#--------------------------------------------
+simulation/h: 0.001
+simulation/sim_steps: 1
+simulation/control_delay: 0.005
+simulation/sim_kinematics: true
+simulation/sim_dynamics: false
+simulation/base_frame: "base_link"
+
+#--------------------------------------------
+# Topics
+#--------------------------------------------
+simulation/usm_state: "state_estimation/usm_state"
+velocity: "velocity" #temp

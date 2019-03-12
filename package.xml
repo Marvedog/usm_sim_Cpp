@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>usm_sim</name>
+  <version>0.0.0</version>
+  <description>The usm_sim package</description>
+  <maintainer email="marcus@todo.todo">marcus</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>Eigen3</build_depend>
+  <build_depend>tf</build_depend>
+  <build_depend>usm_msgs</build_depend>
+  <build_depend>usm_utils</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>Eigen3</build_export_depend>
+  <exec_depend>roscpp</exec_depend>
+</package>
