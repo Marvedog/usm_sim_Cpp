@@ -79,8 +79,6 @@ SimulationNode::SimulationNode(const ros::NodeHandle &nh, const ros::NodeHandle 
     this->publishUsmState();
   }
   
-  //std::cout << "SimulationNode:: Got first control" << std::endl;
-
   this->timer = this->nh.createTimer(ros::Duration(this->steps*this->ts), &SimulationNode::timerCb, this);
 }
 
