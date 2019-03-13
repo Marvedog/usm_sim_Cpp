@@ -84,11 +84,11 @@ SimKinematics::sim(const Eigen::VectorXd &zeta, const int steps)
   Eigen::Matrix3d Su = Geometry::skew(zeta.block(3, 0, 3, 1));
   for (int i = 0; i < steps; i++) {
     
-    this->p = this->p + this->h*(zeta.block(0, 0, 3, 1));
+    this->p +=  this->h*(zeta.block(0, 0, 3, 1));
 
-    this->R = this->R + this->h*(Su*this->R);
+    this->R += this->h*(Su*this->R);
 
-    this->q = this->q + this->h*(zeta.block(3+3, 0, this->nq, 1));
+    this->q += this->h*(zeta.block(3+3, 0, this->nq, 1));
   }
 
   // Return
