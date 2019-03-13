@@ -75,9 +75,6 @@ SimKinematics::setStepSize(const double h)
 Eigen::VectorXd
 SimKinematics::sim(const Eigen::VectorXd &zeta, const int steps) 
 {
-  std::cout << "In Sim :: " << std::endl;
-  
-  // Dimensioning check zeta
   if (zeta.size() != this->nxi) {
     std::cerr << "Conflicting dimensions; zeta:: " << zeta.rows() << std::endl;
     return Eigen::VectorXd::Zero(this->nxi); 
