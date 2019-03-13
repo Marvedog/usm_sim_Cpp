@@ -37,7 +37,7 @@ class SimKinematics {
 SimKinematics::SimKinematics()
 : h(0.01)
 , p(Eigen::Matrix<double, 3, 1>::Zero())
-, R(Eigen::Matrix<double, 3, 3>::Zero())
+, R(Eigen::Matrix<double, 3, 3>::Identity())
 {}
 
 
@@ -48,7 +48,7 @@ SimKinematics::SimKinematics()
 SimKinematics::SimKinematics(const double h, const int joints)
 : h(h)
 , p(Eigen::Vector3d::Zero())
-, R(Eigen::Matrix3d::Zero())
+, R(Eigen::Matrix3d::Identity())
 , nq(joints)
 , nxi(6+joints)
 {
