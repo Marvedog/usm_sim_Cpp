@@ -26,7 +26,7 @@ class SimKinematics {
    
     void setStepSize(const double h);
 
-    Eigen::VectorXd sim(const Eigen::VectorXd &zeta, const int steps);
+    Eigen::VectorXd sim(Eigen::VectorXd &zeta, const int steps);
 };
 
 
@@ -73,11 +73,12 @@ SimKinematics::setStepSize(const double h)
  */
 
 Eigen::VectorXd
-SimKinematics::sim(const Eigen::VectorXd &zeta, const int steps) 
+SimKinematics::sim(Eigen::VectorXd &zeta, const int steps) 
 {
   if (zeta.size() != this->nxi) {
     std::cerr << "Conflicting dimensions; zeta:: " << zeta.rows() << std::endl;
-    return Eigen::VectorXd::Zero(this->nxi); 
+    std::cerr << "Setting zeta to zero!!" << std::endl;
+    zeta =  Eigen::VectorXd::Zero(this->nxi); 
   }
 
   // Euler integration 
