@@ -87,7 +87,7 @@ SimKinematics::sim(Eigen::VectorXd &zeta, const int steps)
     
     this->p +=  this->h*(zeta.block(0, 0, 3, 1));
 
-    this->R += this->h*(Su*this->R);
+    this->R += this->h*(this->R*Su);
 
     this->q += this->h*(zeta.block(3+3, 0, this->nq, 1));
   }
