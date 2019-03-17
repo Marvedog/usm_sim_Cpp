@@ -22,7 +22,7 @@ class SimKinematics {
 
   public:
     SimKinematics();
-    SimKinematics(const double h, const int joints);
+    SimKinematics(const double h, const int joints, const Eigen::Vector3d &p);
    
     void setStepSize(const double h);
 
@@ -45,9 +45,9 @@ SimKinematics::SimKinematics()
  * Constructor with specified step size 
  */
 
-SimKinematics::SimKinematics(const double h, const int joints)
+SimKinematics::SimKinematics(const double h, const int joints, const Eigen::Vector3d &p)
 : h(h)
-, p(Eigen::Vector3d::Zero())
+, p(p)
 , R(Eigen::Matrix3d::Identity())
 , nq(joints)
 , nxi(6+joints)

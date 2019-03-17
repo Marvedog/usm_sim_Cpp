@@ -1,6 +1,6 @@
 #include <usm_sim/simulation_node.h>
 #include <usm_utils/containers.h>
-#include <usm_msgs/UsmState.h>
+#include <usm_utils/conversions.h>
 
 #include <tf/tf.h>
 #include <tf/transform_datatypes.h>
@@ -33,6 +33,7 @@ SimulationNode::publishOdometry(const usm_msgs::UsmState &msg, const std::string
 SimulationNode::SimulationNode(const ros::NodeHandle &nh, const ros::NodeHandle &nhp)
 : nh(nh)
 , nhp(nhp)
+, firstPose(false)
 , firstControl(false)
 {
   // Snake configuration setup
@@ -62,17 +63,27 @@ SimulationNode::SimulationNode(const ros::NodeHandle &nh, const ros::NodeHandle 
   this->zeta = Eigen::VectorXd::Zero(this->nxi);
   mutex.unlock();
 
-  this->simKinematics = SimKinematics(this->ts, this->usm.getJoints());
-
   //std::string controlTopic, usmStateTopic;
   //this->nh.getParam("/control/plant_input", controlTopic);
   //this->nh.getParam("/state_estimation/usm_state", usmStateTopic);
+
+
+  // Wait for start pose
+  this->initSub = this->nh.subscribe("/simulation/pose_init", 1, &SimulationNode::initCb, this);
+  
+  ros::Rate d(1);
+  while (!this->firstPose) {
+    d.sleep();
+    ros::spinOnce();
+  }
+
+  this->simKinematics = SimKinematics(this->ts, this->usm.getJoints(), this->xi.block(0, 0, 3, 1));
+
 
   this->controlSub = this->nh.subscribe("/control/plant_input", 1, &SimulationNode::controlCb, this);
   this->usmStatePub = this->nh.advertise<usm_msgs::UsmState>("/state_estimation/usm_state", 1);
   
   // Set up timer cb
-  ros::Rate d(1);
   while (!this->firstControl) {
     d.sleep();
     ros::spinOnce();
@@ -138,6 +149,26 @@ SimulationNode::controlCb(const usm_msgs::Control &msg)
 
 
 /**
+ *
+ */
+
+void
+SimulationNode::initCb(const usm_msgs::UsmState &msg)
+{
+  Utils::EigenTf T_Ib;
+  Utils::geometryMsgPoseToEigenTf(msg.x.p, T_Ib);
+
+  T_Ib.tf.print();
+
+  mutex.lock();
+  this->xi.block(0, 0, 3, 1) = T_Ib.tf.getOrigin();
+  mutex.unlock();
+  
+  this->firstPose = true;
+}
+
+
+/**
  * Publish usm state message with pose and velocities
  */
 
@@ -177,7 +208,7 @@ SimulationNode::publishUsmState()
   this->usmStatePub.publish(usmState);
 }
 
-  
+
 int
 main(int argc, char** argv)
 {

@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 
 #include <usm_msgs/Control.h>
+#include <usm_msgs/UsmState.h>
 
 #include <usm_utils/snake.h>
 #include <usm_sim/simulate_kinematics.h>
@@ -19,12 +20,14 @@ class SimulationNode {
   private:
     void controlCb(const usm_msgs::Control &msg);
     void timerCb(const ros::TimerEvent &e);
+    void initCb(const usm_msgs::UsmState &msg);
     void publishUsmState();
 
     ros::NodeHandle nh;
     ros::NodeHandle nhp;
 
     ros::Subscriber controlSub;
+    ros::Subscriber initSub;
     ros::Publisher usmStatePub;
 
     ros::Timer timer;
@@ -33,6 +36,7 @@ class SimulationNode {
     int nxi; 
     double ts;
     bool kinematicsOn;
+    bool firstPose;
     bool firstControl;
 
     Utils::Snake usm;
