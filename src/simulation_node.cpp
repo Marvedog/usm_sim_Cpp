@@ -126,9 +126,11 @@ SimulationNode::controlCb(const usm_msgs::Control &msg)
 {
   // Linear velocity
   mutex.lock();
-  this->zeta[0] = msg.guidance.v.linear.x;
-  this->zeta[1] = msg.guidance.v.linear.y;
-  this->zeta[2] = msg.guidance.v.linear.z;
+  Eigen::Matrix3d R_Ib = Geometry::Rzyx(this->xi[3], this->xi[4], this->xi[5]); 
+  Eigen::Vector3d V_b_d;
+  V_b_d <<  msg.guidance.v.linear.x, msg.guidance.v.linear.y, msg.guidance.v.linear.z;
+
+  this->zeta.block(0, 0, 3, 1) = R_Ib*V_b_d;
 
   // Angular velocity (se(3))
   this->zeta[3] = msg.guidance.v.angular.x;

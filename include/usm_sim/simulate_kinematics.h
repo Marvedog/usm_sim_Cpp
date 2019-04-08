@@ -26,7 +26,7 @@ class SimKinematics {
    
     void setStepSize(const double h);
 
-    Eigen::VectorXd sim(Eigen::VectorXd &zeta, const int steps);
+    const Eigen::VectorXd sim(Eigen::VectorXd &zeta, const int steps);
 };
 
 
@@ -72,7 +72,7 @@ SimKinematics::setStepSize(const double h)
  * Simulate kinematics for a fixed number of steps and return state vector
  */
 
-Eigen::VectorXd
+const Eigen::VectorXd
 SimKinematics::sim(Eigen::VectorXd &zeta, const int steps) 
 {
   if (zeta.size() != this->nxi) {
