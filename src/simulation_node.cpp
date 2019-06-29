@@ -5,6 +5,7 @@
 #include <tf/tf.h>
 #include <tf/transform_datatypes.h>
 
+#include <std_msgs/Float32MultiArray.h>
 
 /**
  * Publish odometry transform
@@ -82,7 +83,8 @@ SimulationNode::SimulationNode(const ros::NodeHandle &nh, const ros::NodeHandle 
 
   this->controlSub = this->nh.subscribe("/control/plant_input", 1, &SimulationNode::controlCb, this);
   this->usmStatePub = this->nh.advertise<usm_msgs::UsmState>("/state_estimation/usm_state", 1);
-  
+  this->debugPub = this->nh.advertise<std_msgs::Float32MultiArray>("debug_pose_joints", 1);
+
   // Set up timer cb
   while (!this->firstControl) {
     d.sleep();
@@ -108,8 +110,10 @@ SimulationNode::timerCb(const ros::TimerEvent &e)
 
   // Check for nan
   mutex.lock();
-  if (this->xi[0] != this->xi[0])
+  if (this->xi[0] != this->xi[0]) {
     std::cout << "Simulation:: Nan alarm!!" << std::endl;
+    ros::shutdown();
+  }
   mutex.unlock();
 
   this->publishUsmState();
@@ -132,14 +136,18 @@ SimulationNode::controlCb(const usm_msgs::Control &msg)
 
   this->zeta.block(0, 0, 3, 1) = R_Ib*V_b_d;
 
+
   // Angular velocity (se(3))
   this->zeta[3] = msg.guidance.v.angular.x;
   this->zeta[4] = msg.guidance.v.angular.y;
   this->zeta[5] = msg.guidance.v.angular.z;
 
   // Joint velocities
-  if ((this->zeta.size() - 6) != msg.guidance.dq.theta.size())
+  if ((this->zeta.size() - 6) != msg.guidance.dq.theta.size()) {
     std::cout << "Erroneous number of joint angles! Shutting down simulation." << std::endl;
+    std::cout << "Expected: " << this->zeta.rows() - 6 << std::endl;
+    std::cout << "received: " << msg.guidance.dq.theta.size() << std::endl;
+  }
   
   for (int i = 0; i < this->usm.getJoints(); i++)
     this->zeta[6+i] = msg.guidance.dq.theta[i].angle;
@@ -178,8 +186,10 @@ void
 SimulationNode::publishUsmState()
 {
   usm_msgs::UsmState usmState;
-  
+  std_msgs::Float32MultiArray debug;
+
   mutex.lock();
+
   // Pose
   usmState.x.p.position.x = this->xi[0];
   usmState.x.p.position.y = this->xi[1];
@@ -206,8 +216,14 @@ SimulationNode::publishUsmState()
   for (int i = 3 + 3; i < this->nxi; i++)
     usmState.dx.dq.theta[i-6].angle = this->zeta[i];
 
+
+  debug.data.resize(this->nxi);
+  for (int i = 0; i < this->nxi; i++)
+    debug.data[i] = this->xi[i];
+
   mutex.unlock();
   this->usmStatePub.publish(usmState);
+  this->debugPub.publish(debug);
 }
 
 

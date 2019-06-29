@@ -29,6 +29,7 @@ class SimulationNode {
     ros::Subscriber controlSub;
     ros::Subscriber initSub;
     ros::Publisher usmStatePub;
+    ros::Publisher debugPub;
 
     ros::Timer timer;
     

@@ -91,6 +91,13 @@ SimKinematics::sim(Eigen::VectorXd &zeta, const int steps)
 
     this->q += this->h*(zeta.block(3+3, 0, this->nq, 1));
   }
+  
+  for (int i = 0; i < this->nq; i++) {
+    if (this->q[i] > 1.2)
+      this->q[i] = 1.2;
+    else if (this->q[i] < -1.2)
+      this->q[i] = -1.2;
+  }
 
   // Return
   Eigen::VectorXd xi(this->nxi);
@@ -98,6 +105,7 @@ SimKinematics::sim(Eigen::VectorXd &zeta, const int steps)
   xi.block(0, 0, 3, 1) = this->p;
   xi.block(3, 0, 3, 1) = Geometry::R2euler(this->R); 
   xi.block(6, 0, this->nq, 1) = this->q;
+
   return xi;
 }
 
